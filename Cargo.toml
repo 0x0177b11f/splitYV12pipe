@@ -1,0 +1,8 @@
+[package]
+name	=	"splityv12pipe"
+version	=	"1.0.0"
+authors	=	["tiansheng li"]
+
+
+[dependencies]
+lz4 = "*"
