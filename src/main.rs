@@ -65,15 +65,13 @@ fn compress(dst: String, maxlen: usize) -> Result<()> {
     let mut fi = io::stdin();
     let mut fo = try!(lz4::EncoderBuilder::new().build(try!(File::create(path))));
 
-    let file_path: &str = path.to_str().unwrap();
-
     copy(&mut fi,
          &mut fo,
          &dst,
          maxlen,
          count + 1,
          &move || {
-             println!("{}", file_path);
+             println!("{}", path.display());
              return Ok(());
          })
         .unwrap();
@@ -108,7 +106,6 @@ fn copy(fi: &mut Read,
 
             let file_name: &str = &format!("{}_{}", dst, count.to_string());
             let path = Path::new(file_name);
-            let file_path = path.to_str().unwrap();
             let mut new_fo = try!(lz4::EncoderBuilder::new().build(try!(File::create(path))));
             try!(new_fo.write_all(&buffer[l..len]));
 
@@ -118,7 +115,7 @@ fn copy(fi: &mut Read,
                  maxlen,
                  count + 1,
                  &move || {
-                     println!("{}", file_path);
+                     println!("{}", path.display());
                      return Ok(());
                  })
                 .unwrap();
