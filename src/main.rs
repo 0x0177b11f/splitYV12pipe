@@ -7,6 +7,7 @@ use std::io::Result;
 use std::io::Read;
 use std::io::Write;
 use std::path::Path;
+use lz4::Encoder;
 
 fn main() {
     let args: &Vec<String> = &mut env::args().collect();
@@ -57,41 +58,77 @@ fn main() {
 }
 
 fn compress(dst: String, maxlen: usize) -> Result<()> {
-    let mut count: i32 = 0;
-    let mut out: String = format!("{}_{}", dst, count.to_string());
+    let count: i32 = 0;
+    let file_name: String = format!("{}_{}", dst, count.to_string());
+    let path: &Path = Path::new(&file_name);
 
     let mut fi = io::stdin();
-    let mut buffer: [u8; 1024] = [0; 1024];
+    let mut fo = try!(lz4::EncoderBuilder::new().build(try!(File::create(path))));
 
-    let mut log_len: usize = 0;
-    let mut fo = try!(lz4::EncoderBuilder::new().build(try!(File::create(&Path::new(&out)))));
+    let file_path: &str = path.to_str().unwrap();
+
+    copy(&mut fi,
+         &mut fo,
+         &dst,
+         maxlen,
+         count + 1,
+         &move || {
+             println!("{}", file_path);
+             return Ok(());
+         })
+        .unwrap();
+    fo.finish();
+
+    Ok(())
+}
+
+fn copy(fi: &mut Read,
+        fo: &mut Encoder<std::fs::File>,
+        dst: &str,
+        maxlen: usize,
+        count: i32,
+        done: &Fn() -> Result<()>)
+        -> Result<()> {
+    let mut buffer: [u8; 1024] = [0; 1024];
+    let mut write_len: usize = 0;
 
     loop {
         let len = try!(fi.read(&mut buffer));
         if len == 0 {
+            done().unwrap();
             break;
         }
-        if log_len + len >= maxlen {
+        if write_len + len >= maxlen {
             let mut l = 0;
-            if (log_len + len) - maxlen > 0 {
-                l = maxlen - log_len;
+            if (write_len + len) - maxlen > 0 {
+                l = maxlen - write_len;
                 try!(fo.write_all(&buffer[0..l]));
             }
-            fo.finish();
+            done().unwrap();
 
-            count += 1;
-            out = format!("{}{}", dst, count.to_string());
-            fo = try!(lz4::EncoderBuilder::new().build(try!(File::create(&Path::new(&out)))));
+            let file_name: &str = &format!("{}_{}", dst, count.to_string());
+            let path = Path::new(file_name);
+            let file_path = path.to_str().unwrap();
+            let mut new_fo = try!(lz4::EncoderBuilder::new().build(try!(File::create(path))));
+            try!(new_fo.write_all(&buffer[l..len]));
 
-            try!(fo.write_all(&buffer[l..len]));
-            log_len = 0;
+            copy(fi,
+                 &mut new_fo,
+                 dst,
+                 maxlen,
+                 count + 1,
+                 &move || {
+                     println!("{}", file_path);
+                     return Ok(());
+                 })
+                .unwrap();
 
-            continue;
+            new_fo.finish();
+
+            break;
         }
         try!(fo.write_all(&buffer[0..len]));
-        log_len += len;
+        write_len += len;
     }
-    match fo.finish() {
-        (_, result) => result,
-    }
+    Ok(())
 }
