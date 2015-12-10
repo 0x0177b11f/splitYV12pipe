@@ -69,6 +69,7 @@ fn compress(dst: String, maxlen: u64) -> Result<()> {
          &mut fo,
          &dst,
          maxlen,
+         0,
          count + 1,
          &move || {
              println!("{}", path.display());
@@ -84,11 +85,12 @@ fn copy(fi: &mut Read,
         fo: &mut Encoder<std::fs::File>,
         dst: &str,
         maxlen: u64,
+        already_wrote_len: u64,
         count: i32,
         done: &Fn() -> Result<()>)
         -> Result<()> {
     let mut buffer: [u8; 1024] = [0; 1024];
-    let mut write_len: u64 = 0;
+    let mut write_len: u64 = 0 + already_wrote_len;
 
     loop {
         let len = try!(fi.read(&mut buffer));
@@ -100,8 +102,10 @@ fn copy(fi: &mut Read,
 
         if write_len + len_u64 >= maxlen {
             let mut l = 0;
+            let mut l_u64 = 0;
             if (write_len + len_u64) - maxlen > 0 {
-                l = (maxlen - write_len) as usize;
+                l_u64 = maxlen - write_len;
+                l = l_u64 as usize;
                 try!(fo.write_all(&buffer[0..l]));
             }
             done().unwrap();
@@ -115,6 +119,7 @@ fn copy(fi: &mut Read,
                  &mut new_fo,
                  dst,
                  maxlen,
+                 len_u64 - l_u64,
                  count + 1,
                  &move || {
                      println!("{}", path.display());
