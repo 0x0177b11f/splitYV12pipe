@@ -12,9 +12,9 @@ use lz4::Encoder;
 fn main() {
     let args: &Vec<String> = &mut env::args().collect();
 
-    let mut width: u32 = 0;
-    let mut height: u32 = 0;
-    let mut frame: u32 = 0;
+    let mut width: u64 = 0;
+    let mut height: u64 = 0;
+    let mut frame: u64 = 0;
     let mut out_file: &str = "";
 
     let mut index: usize = 0;
@@ -25,17 +25,17 @@ fn main() {
         match arg {
             "-w" => {
                 if index < (args_len - 1) {
-                    width = args[index + 1].parse::<u32>().unwrap();;
+                    width = args[index + 1].parse::<u32>().unwrap() as u64;
                 }
             }
             "-h" => {
                 if index < (args_len - 1) {
-                    height = args[index + 1].parse::<u32>().unwrap();;
+                    height = args[index + 1].parse::<u32>().unwrap() as u64;
                 }
             }
             "-frame" => {
                 if index < (args_len - 1) {
-                    frame = args[index + 1].parse::<u32>().unwrap();
+                    frame = args[index + 1].parse::<u32>().unwrap() as u64;
                 }
             }
             "-o" => {
@@ -53,11 +53,11 @@ fn main() {
         return;
     }
 
-    let max_bytes_len: usize = (frame * (width * height + width * height / 2)) as usize;
+    let max_bytes_len: u64 = frame * (((width * height) + ((width * height) / 2)));
     compress(out_file.to_string(), max_bytes_len).unwrap();
 }
 
-fn compress(dst: String, maxlen: usize) -> Result<()> {
+fn compress(dst: String, maxlen: u64) -> Result<()> {
     let count: i32 = 0;
     let file_name: String = format!("{}_{}", dst, count.to_string());
     let path: &Path = Path::new(&file_name);
@@ -83,23 +83,25 @@ fn compress(dst: String, maxlen: usize) -> Result<()> {
 fn copy(fi: &mut Read,
         fo: &mut Encoder<std::fs::File>,
         dst: &str,
-        maxlen: usize,
+        maxlen: u64,
         count: i32,
         done: &Fn() -> Result<()>)
         -> Result<()> {
     let mut buffer: [u8; 1024] = [0; 1024];
-    let mut write_len: usize = 0;
+    let mut write_len: u64 = 0;
 
     loop {
         let len = try!(fi.read(&mut buffer));
+        let len_u64 = len as u64;
         if len == 0 {
             done().unwrap();
             break;
         }
-        if write_len + len >= maxlen {
+
+        if write_len + len_u64 >= maxlen {
             let mut l = 0;
-            if (write_len + len) - maxlen > 0 {
-                l = maxlen - write_len;
+            if (write_len + len_u64) - maxlen > 0 {
+                l = (maxlen - write_len) as usize;
                 try!(fo.write_all(&buffer[0..l]));
             }
             done().unwrap();
@@ -125,7 +127,7 @@ fn copy(fi: &mut Read,
             break;
         }
         try!(fo.write_all(&buffer[0..len]));
-        write_len += len;
+        write_len += len_u64;
     }
     Ok(())
 }
